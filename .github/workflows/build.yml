@@ -21,7 +21,7 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Create Native WebView Wrapper
+      - name: Generate Android Project
         run: |
           mkdir -p app/src/main/assets
           mkdir -p app/src/main/java/com/refra/photos
@@ -111,7 +111,10 @@ jobs:
           }
           EOF
 
-      - name: Build Gradle APK
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Build APK with Gradle
         run: gradle assembleDebug
 
       - name: Upload APK
