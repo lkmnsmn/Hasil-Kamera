@@ -8,37 +8,34 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-android:
+  build:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout Code
         uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 18
 
       - name: Setup Java JDK
         uses: actions/setup-java@v4
         with:
-          distribution: 'zulu'
+          distribution: 'temurin'
           java-version: '17'
 
-      - name: Initialize Capacitor & Build APK
-        run: |
-          npm init -y
-          npm install @capacitor/core @capacitor/cli @capacitor/android
-          npx cap init "ReFra Photos" "com.refra.photos" --web-dir .
-          npx cap add android
-          npx cap sync android
-          cd android
-          chmod +x gradlew
-          ./gradlew assembleDebug
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
 
-      - name: Upload APK Artifact
+      - name: Build Web to APK (Corber/Cordova)
+        run: |
+          npm install -g cordova
+          cordova create app com.refra.photos ReFraPhotos
+          cd app
+          rm -rf www/*
+          cp ../index.html www/index.html
+          cordova platform add android
+          cordova build android
+
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: ReFra-Photos-APK
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          path: app/platforms/android/app/build/outputs/apk/debug/app-debug.apk
