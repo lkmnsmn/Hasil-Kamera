@@ -12,35 +12,33 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Code
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Build APK via Web2App
-        uses: subosito/flutter-action@v2
+      - name: Setup Java JDK
+        uses: actions/setup-java@v4
         with:
-          channel: 'stable'
+          distribution: 'temurin'
+          java-version: '17'
 
-      - name: Create Webview App
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Build APK via Webview (Capacitor Official)
         run: |
-          flutter create app
-          cd app
-          rm -rf lib/main.dart
-          cat << 'EOF' > lib/main.dart
-          import 'package:flutter/material.dart';
-          import 'package:webview_flutter/webview_flutter.dart';
-          void main() => runApp(const MaterialApp(home: Scaffold(body: SafeArea(child: WebViewWidget(controller: WebViewController()..setJavaScriptMode(JavaScriptMode.unrestricted)..loadFlutterAsset('assets/index.html'))))));
-          EOF
-          mkdir -p assets
-          cp ../index.html assets/index.html
-          echo "  assets:" >> pubspec.yaml
-          echo "    - assets/index.html" >> pubspec.yaml
-          echo "dependencies:" >> pubspec.yaml
-          echo "  webview_flutter: ^4.2.0" >> pubspec.yaml
-          flutter pub get
-          flutter build apk --debug
+          npm init -y
+          npm install @capacitor/core @capacitor/cli @capacitor/android
+          npx cap init "ReFra Photos" "com.refra.photos" --web-dir .
+          npx cap add android
+          npx cap sync android
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: ReFra-Photos-APK
-          path: app/build/app/outputs/flutter-apk/app-debug.apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
