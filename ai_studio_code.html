@@ -1,0 +1,888 @@
+<!DOCTYPE html>
+<html lang="id" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>ReFra Photos - iOS 18 Gallery & AI Drag-Out</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- React 18, ReactDOM, and Babel Standalone (Works offline & file:// without local server) -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+  <style>
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    /* iOS 18 / Infinix AI Cutout Glow contour effect */
+    @keyframes subjectGlow {
+      0% {
+        filter: drop-shadow(0 0 16px rgba(255, 255, 255, 0.9)) drop-shadow(0 0 32px rgba(56, 189, 248, 0.85));
+        transform: scale(1.02);
+      }
+      50% {
+        filter: drop-shadow(0 0 26px rgba(255, 255, 255, 1)) drop-shadow(0 0 48px rgba(168, 85, 247, 0.95));
+        transform: scale(1.03);
+      }
+      100% {
+        filter: drop-shadow(0 0 16px rgba(255, 255, 255, 0.9)) drop-shadow(0 0 32px rgba(56, 189, 248, 0.85));
+        transform: scale(1.02);
+      }
+    }
+
+    .animate-subject-lift {
+      animation: subjectGlow 2.4s ease-in-out infinite;
+    }
+
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(150, 150, 150, 0.25);
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(150, 150, 150, 0.5);
+    }
+
+    .ios-glass-card {
+      background: rgba(255, 255, 255, 0.75);
+      backdrop-filter: blur(24px) saturate(180%);
+      -webkit-backdrop-filter: blur(24px) saturate(180%);
+      border: 1px solid rgba(255, 255, 255, 0.4);
+    }
+    .dark .ios-glass-card {
+      background: rgba(28, 28, 30, 0.75);
+      backdrop-filter: blur(24px) saturate(180%);
+      -webkit-backdrop-filter: blur(24px) saturate(180%);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .ios-glass-nav {
+      background: rgba(255, 255, 255, 0.85);
+      backdrop-filter: blur(30px) saturate(190%);
+      -webkit-backdrop-filter: blur(30px) saturate(190%);
+      border: 1px solid rgba(255, 255, 255, 0.5);
+      box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.08);
+    }
+    .dark .ios-glass-nav {
+      background: rgba(28, 28, 30, 0.85);
+      backdrop-filter: blur(30px) saturate(190%);
+      -webkit-backdrop-filter: blur(30px) saturate(190%);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+    }
+  </style>
+</head>
+<body class="bg-neutral-50 dark:bg-black text-neutral-900 dark:text-neutral-100 antialiased selection:bg-sky-500 selection:text-white">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    // --- BUILT-IN SVG ICONS ---
+    const IconPlus = ({ className = "w-4 h-4" }) => (
+      <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+    );
+    const IconHeart = ({ className = "w-4 h-4", filled = false }) => (
+      <svg className={className} viewBox="0 0 24 24" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z" /></svg>
+    );
+    const IconMove = ({ className = "w-4 h-4" }) => (
+      <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M7.5 7.5L3 12m0 0l4.5 4.5M3 12h18m-4.5-4.5L21 12m0 0l-4.5 4.5" /></svg>
+    );
+    const IconSparkles = ({ className = "w-4 h-4" }) => (
+      <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z" /></svg>
+    );
+    const IconFrame = ({ className = "w-4 h-4" }) => (
+      <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><rect width="18" height="18" x="3" y="3" rx="2" /><rect width="12" height="12" x="6" y="6" rx="1" /></svg>
+    );
+    const IconSearch = ({ className = "w-4 h-4" }) => (
+      <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" /></svg>
+    );
+    const IconSun = ({ className = "w-4 h-4" }) => (
+      <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><circle cx="12" cy="12" r="4" /><path strokeLinecap="round" strokeLinejoin="round" d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32l1.41 1.41M2 12h2m16 0h2M6.34 17.66l-1.41 1.41m14.14-14.14l-1.41 1.41" /></svg>
+    );
+    const IconMoon = ({ className = "w-4 h-4" }) => (
+      <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z" /></svg>
+    );
+    const IconX = ({ className = "w-4 h-4" }) => (
+      <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+    );
+    const IconCheck = ({ className = "w-4 h-4" }) => (
+      <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+    );
+    const IconDownload = ({ className = "w-4 h-4" }) => (
+      <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
+    );
+    const IconInfo = ({ className = "w-4 h-4" }) => (
+      <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><circle cx="12" cy="12" r="9" /><path strokeLinecap="round" strokeLinejoin="round" d="M12 8h.01M12 12v4" /></svg>
+    );
+
+    // --- CURATED INITIAL DATASET (Ultra-sharp standalone URLs) ---
+    const INITIAL_PHOTOS = [
+      {
+        id: 'photo-1',
+        title: 'Alpine Emerald Dawn',
+        subtitle: 'Morning mist rolling over Seealpsee reflections',
+        category: 'Nature',
+        date: 'Oct 24, 2026',
+        location: 'Appenzell, Swiss Alps',
+        url: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=1600&q=85',
+        width: 2048,
+        height: 1536,
+        year: 2026,
+        month: 'October',
+        isFavorite: true,
+        downloads: 1420,
+        aspect: '4:3',
+        palette: ['#1d4e4c', '#548c8b', '#c09f6e', '#e7d9b7', '#25352e'],
+        tags: ['Alpine', 'Lake', 'Mountains', 'Dawn'],
+        exif: {
+          camera: 'Sony Alpha 7R V',
+          lens: 'FE 24-70mm F2.8 GM II',
+          focalLength: '35mm',
+          aperture: 'f/4.0',
+          shutterSpeed: '1/320s',
+          iso: 100,
+          megapixels: '61.0 MP'
+        }
+      },
+      {
+        id: 'photo-2',
+        title: 'Monolithic Curves',
+        subtitle: 'Sculpted raw travertine and light geometry',
+        category: 'Architecture',
+        date: 'Oct 18, 2026',
+        location: 'Valencia Contemporary Forum',
+        url: 'https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=1600&q=85',
+        width: 2048,
+        height: 1536,
+        year: 2026,
+        month: 'October',
+        isFavorite: false,
+        downloads: 890,
+        aspect: '4:3',
+        palette: ['#d7c2a7', '#8e7f72', '#b8a594', '#4b5563', '#2d3339'],
+        tags: ['Brutalist', 'Concrete', 'Geometry', 'Modern'],
+        exif: {
+          camera: 'Leica SL2',
+          lens: 'Vario-Elmarit-SL 24-90mm',
+          focalLength: '28mm',
+          aperture: 'f/5.6',
+          shutterSpeed: '1/500s',
+          iso: 50,
+          megapixels: '47.3 MP'
+        }
+      },
+      {
+        id: 'photo-3',
+        title: 'Nocturne Luminescence',
+        subtitle: 'Editorial portrait under dual amber & cyan key',
+        category: 'Portrait',
+        date: 'Sep 29, 2026',
+        location: 'Studio Marais, Paris',
+        url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=1600&q=85',
+        width: 2048,
+        height: 1536,
+        year: 2026,
+        month: 'September',
+        isFavorite: true,
+        downloads: 2310,
+        aspect: '4:3',
+        palette: ['#0f172a', '#1e293b', '#d97706', '#0891b2', '#fde68a'],
+        tags: ['Portrait', 'Studio', 'Editorial', 'Cyan'],
+        exif: {
+          camera: 'Hasselblad X2D 100C',
+          lens: 'XCD 80mm f/1.9',
+          focalLength: '80mm',
+          aperture: 'f/1.9',
+          shutterSpeed: '1/250s',
+          iso: 64,
+          megapixels: '100.0 MP'
+        }
+      },
+      {
+        id: 'photo-4',
+        title: 'Twilight Sand Flow',
+        subtitle: 'Minimalist aerial dunes in pastel lavender',
+        category: 'Minimalist',
+        date: 'Aug 14, 2026',
+        location: 'Erg Chebbi, Sahara',
+        url: 'https://images.unsplash.com/photo-1509316975850-ff9c5deb0cd9?auto=format&fit=crop&w=1600&q=85',
+        width: 2048,
+        height: 1536,
+        year: 2026,
+        month: 'August',
+        isFavorite: true,
+        downloads: 3400,
+        aspect: '4:3',
+        palette: ['#ca8a84', '#e2a39b', '#7c6065', '#d4b2b6', '#3b282d'],
+        tags: ['Minimalist', 'Desert', 'Pastel', 'Wallpaper'],
+        exif: {
+          camera: 'DJI Mavic 3 Pro Cine',
+          lens: 'Hasselblad 24mm',
+          focalLength: '24mm',
+          aperture: 'f/2.8',
+          shutterSpeed: '1/640s',
+          iso: 100,
+          megapixels: '20.0 MP'
+        }
+      }
+    ];
+
+    // --- DRAG AND DROP OUT HELPER (Like Infinix AI & iOS 18) ---
+    function setupPhotoDragData(e, photo, options = {}) {
+      const isCutout = options.isCutout || false;
+      const cleanTitle = photo.title.replace(/[^a-z0-9]/gi, '_');
+      const filename = `${cleanTitle}${isCutout ? '_cutout' : ''}.jpg`;
+      const url = photo.url;
+
+      e.dataTransfer.effectAllowed = 'copyMove';
+
+      // 1. Text & URI list (Supported by WhatsApp, Notes, Browser tabs, Discord)
+      try {
+        e.dataTransfer.setData('text/plain', url);
+        e.dataTransfer.setData('text/uri-list', url);
+      } catch(err) {}
+
+      // 2. HTML representation
+      try {
+        e.dataTransfer.setData('text/html', `<img src="${url}" alt="${photo.title}" />`);
+      } catch(err) {}
+
+      // 3. DownloadURL (Chromium native drag-out directly onto desktop folders!)
+      try {
+        e.dataTransfer.setData('DownloadURL', `image/jpeg:${filename}:${url}`);
+      } catch(err) {}
+
+      // 4. Custom JSON payload
+      try {
+        e.dataTransfer.setData('application/json', JSON.stringify({
+          source: 'refra-photos',
+          isCutout,
+          photo
+        }));
+      } catch(err) {}
+    }
+
+    // --- MAIN REACT APPLICATION ---
+    function App() {
+      const [photos, setPhotos] = useState(() => {
+        try {
+          const saved = localStorage.getItem('refra_single_v1');
+          return saved ? JSON.parse(saved) : INITIAL_PHOTOS;
+        } catch {
+          return INITIAL_PHOTOS;
+        }
+      });
+
+      const [isDarkMode, setIsDarkMode] = useState(true);
+      const [activeTab, setActiveTab] = useState('library'); // 'library' | 'collections' | 'framing' | 'sandbox'
+      const [grouping, setGrouping] = useState('all'); // 'years' | 'months' | 'days' | 'all'
+      const [selectedCategory, setSelectedCategory] = useState('All');
+      const [onlyFavorites, setOnlyFavorites] = useState(false);
+      const [searchQuery, setSearchQuery] = useState('');
+      
+      const [activePhoto, setActivePhoto] = useState(null);
+      const [isSubjectLiftActive, setIsSubjectLiftActive] = useState(false);
+      const [activeFrame, setActiveFrame] = useState('none');
+      const [wallColor, setWallColor] = useState('#171717');
+      const [showInfo, setShowInfo] = useState(false);
+      const [copiedColor, setCopiedColor] = useState(null);
+
+      const [isSandboxOpen, setIsSandboxOpen] = useState(false);
+      const [sandboxTab, setSandboxTab] = useState('chat');
+      const [sandboxOver, setSandboxOver] = useState(false);
+      const [droppedItems, setDroppedItems] = useState([]);
+
+      useEffect(() => {
+        localStorage.setItem('refra_single_v1', JSON.stringify(photos));
+      }, [photos]);
+
+      const toggleFavorite = (id, e) => {
+        if (e) e.stopPropagation();
+        setPhotos(prev => prev.map(p => p.id === id ? { ...p, isFavorite: !p.isFavorite } : p));
+      };
+
+      const filteredPhotos = photos.filter(p => {
+        if (onlyFavorites && !p.isFavorite) return false;
+        if (selectedCategory !== 'All' && p.category !== selectedCategory) return false;
+        if (searchQuery.trim()) {
+          const q = searchQuery.toLowerCase();
+          return p.title.toLowerCase().includes(q) || p.location.toLowerCase().includes(q) || p.category.toLowerCase().includes(q);
+        }
+        return true;
+      });
+
+      const handleDropInSandbox = (e) => {
+        e.preventDefault();
+        setSandboxOver(false);
+        const url = e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/plain') || 'https://images.unsplash.com/photo-1506744038136-46273834b3fb';
+        let title = 'Dropped Photo';
+        try {
+          const json = JSON.parse(e.dataTransfer.getData('application/json'));
+          if (json && json.photo) title = json.photo.title;
+        } catch(err) {}
+
+        const now = new Date();
+        const time = `${now.getHours()}:${now.getMinutes().toString().padStart(2, '0')}`;
+        setDroppedItems(prev => [{ id: Date.now(), title, url, time, target: sandboxTab }, ...prev]);
+      };
+
+      return (
+        <div className={`min-h-screen ${isDarkMode ? 'dark bg-black text-neutral-100' : 'bg-neutral-50 text-neutral-900'} antialiased flex flex-col`}>
+          
+          {/* TOP BAR CONTRACT: Brand — Nav Links — Primary Action */}
+          <header className="sticky top-0 z-40 w-full ios-glass-nav border-b border-neutral-200/60 dark:border-neutral-800/60">
+            <div className="max-w-7xl mx-auto flex items-center justify-between gap-8 px-4 sm:px-6 py-3">
+              <div className="flex items-center gap-3 shrink-0">
+                <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-sky-500 via-indigo-500 to-rose-400 p-[1.5px] shadow-sm">
+                  <div className="w-full h-full bg-white dark:bg-neutral-900 rounded-[10px] flex items-center justify-center">
+                    <IconSparkles className="w-4 h-4 text-sky-500" />
+                  </div>
+                </div>
+                <span className="text-base sm:text-lg font-bold tracking-tight text-neutral-900 dark:text-white whitespace-nowrap">
+                  ReFra Photos
+                </span>
+              </div>
+
+              <nav className="hidden md:flex items-center gap-7 text-sm font-medium">
+                {['library', 'collections', 'framing', 'sandbox'].map((tab) => (
+                  <button
+                    key={tab}
+                    onClick={() => setActiveTab(tab)}
+                    className={`whitespace-nowrap capitalize transition-colors py-1 ${
+                      activeTab === tab
+                        ? 'text-sky-500 font-semibold'
+                        : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-white'
+                    }`}
+                  >
+                    {tab === 'framing' ? 'Framing Studio' : tab === 'sandbox' ? 'Drag Sandbox' : tab}
+                  </button>
+                ))}
+              </nav>
+
+              <div className="flex items-center gap-2.5 shrink-0">
+                <button
+                  onClick={() => setIsDarkMode(!isDarkMode)}
+                  className="w-8 h-8 rounded-full flex items-center justify-center text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200/60 dark:hover:bg-neutral-800 transition-colors"
+                >
+                  {isDarkMode ? <IconSun className="w-4 h-4 text-amber-400" /> : <IconMoon className="w-4 h-4 text-neutral-600" />}
+                </button>
+                <button
+                  onClick={() => setIsSandboxOpen(true)}
+                  className="h-8.5 px-3.5 rounded-full bg-sky-500 hover:bg-sky-400 text-neutral-950 font-bold text-xs flex items-center gap-1.5 shadow-sm active:scale-95 transition-all"
+                >
+                  <IconSparkles className="w-3.5 h-3.5" />
+                  <span>Drop Tester</span>
+                </button>
+              </div>
+            </div>
+          </header>
+
+          {/* MAIN CONTAINER */}
+          <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-4">
+            
+            {/* Spotlight Banner: Infinix AI Gallery & iOS Drag-Out */}
+            <div className="mb-6 p-4 rounded-2xl bg-gradient-to-r from-sky-500/10 via-indigo-500/10 to-rose-500/10 border border-sky-500/20 flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-sky-500/20 text-sky-400 flex items-center justify-center shrink-0">
+                  <IconMove className="w-5 h-5 text-sky-400" />
+                </div>
+                <div>
+                  <p className="text-xs sm:text-sm font-semibold text-neutral-900 dark:text-white flex items-center gap-2">
+                    <span>Infinix AI Gallery & iOS Drag-Out Enabled</span>
+                    <span className="text-[10px] bg-sky-500 text-neutral-950 font-bold px-2 py-0.5 rounded-full">LIVE</span>
+                  </p>
+                  <p className="text-[11px] sm:text-xs text-neutral-600 dark:text-neutral-400">
+                    Seret foto langsung keluar jendela browser ke Desktop, WhatsApp Web, Discord, atau Drop Sandbox!
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsSandboxOpen(true)}
+                className="px-3.5 py-1.5 rounded-full bg-sky-500 hover:bg-sky-400 text-neutral-950 font-bold text-xs flex items-center gap-1.5 shadow-xs"
+              >
+                <span>Uji Coba Drop Sandbox</span>
+              </button>
+            </div>
+
+            {/* TAB: LIBRARY */}
+            {activeTab === 'library' && (
+              <div className="space-y-4">
+                {/* Search & Stats */}
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                  <div className="relative flex-1 max-w-md">
+                    <IconSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
+                    <input
+                      type="text"
+                      placeholder="Cari foto, lokasi, kategori..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2 rounded-full bg-neutral-200/60 dark:bg-neutral-800/60 border border-transparent focus:border-sky-500 text-xs focus:outline-none text-neutral-900 dark:text-white"
+                    />
+                  </div>
+                  <span className="text-xs text-neutral-500 font-mono">{filteredPhotos.length} Foto</span>
+                </div>
+
+                {/* iOS 18 Segmented View Switcher */}
+                <div className="w-full flex flex-col sm:flex-row items-center justify-between gap-3 pt-2 pb-2">
+                  <div className="flex items-center p-1 bg-neutral-200/70 dark:bg-neutral-800/80 rounded-full text-xs font-medium">
+                    {['years', 'months', 'days', 'all'].map((g) => (
+                      <button
+                        key={g}
+                        onClick={() => setGrouping(g)}
+                        className={`px-3.5 py-1.5 rounded-full capitalize transition-all ${
+                          grouping === g
+                            ? 'bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white shadow-sm font-semibold'
+                            : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-white'
+                        }`}
+                      >
+                        {g}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="flex items-center gap-1.5 overflow-x-auto max-w-full pb-1 sm:pb-0">
+                    {['All', 'Nature', 'Architecture', 'Portrait', 'Minimalist'].map((cat) => (
+                      <button
+                        key={cat}
+                        onClick={() => setSelectedCategory(cat)}
+                        className={`px-3 py-1 text-xs rounded-full transition-colors ${
+                          selectedCategory === cat
+                            ? 'bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white shadow-xs font-semibold'
+                            : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-200'
+                        }`}
+                      >
+                        {cat}
+                      </button>
+                    ))}
+
+                    <button
+                      onClick={() => setOnlyFavorites(!onlyFavorites)}
+                      className={`h-7 px-3 rounded-full text-xs font-medium flex items-center gap-1.5 transition-colors ${
+                        onlyFavorites
+                          ? 'bg-rose-500 text-white'
+                          : 'bg-neutral-200/60 dark:bg-neutral-800/60 text-neutral-700 dark:text-neutral-300'
+                      }`}
+                    >
+                      <IconHeart className="w-3.5 h-3.5" filled={onlyFavorites} />
+                      <span>Favorit</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Photos Grid with Native Drag Out */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
+                  {filteredPhotos.map((photo) => (
+                    <div
+                      key={photo.id}
+                      draggable
+                      onDragStart={(e) => setupPhotoDragData(e, photo)}
+                      onClick={() => {
+                        setActivePhoto(photo);
+                        setIsSubjectLiftActive(false);
+                      }}
+                      className="group relative overflow-hidden rounded-2xl cursor-pointer bg-neutral-100 dark:bg-neutral-900 border border-neutral-200/50 dark:border-neutral-800/50 hover:-translate-y-1 hover:shadow-xl transition-all duration-300"
+                    >
+                      <div className="relative aspect-[4/3] overflow-hidden bg-neutral-800">
+                        <img
+                          src={photo.url}
+                          alt={photo.title}
+                          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+
+                        {/* Drag Out Badge */}
+                        <div className="absolute top-2.5 left-2.5 px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md text-white text-[11px] font-medium flex items-center gap-1.5 opacity-90 group-hover:opacity-100">
+                          <IconMove className="w-3 h-3 text-sky-400" />
+                          <span>Seret Keluar</span>
+                        </div>
+
+                        {/* Favorite button */}
+                        <button
+                          onClick={(e) => toggleFavorite(photo.id, e)}
+                          className="absolute top-2.5 right-2.5 w-7 h-7 rounded-full bg-black/50 hover:bg-black/80 backdrop-blur-md text-white flex items-center justify-center transition-transform hover:scale-110"
+                        >
+                          <IconHeart className={`w-3.5 h-3.5 ${photo.isFavorite ? 'text-rose-500 fill-rose-500' : 'text-white'}`} filled={photo.isFavorite} />
+                        </button>
+                      </div>
+
+                      {/* Clean Unboxed Metadata */}
+                      <div className="p-3 text-neutral-800 dark:text-neutral-200">
+                        <div className="flex items-center justify-between gap-2 mb-1">
+                          <h4 className="font-semibold text-sm truncate text-neutral-900 dark:text-neutral-100">{photo.title}</h4>
+                          <span className="text-[11px] text-neutral-500 font-mono">{photo.aspect}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-xs text-neutral-500">
+                          <span>{photo.location}</span>
+                          <span>·</span>
+                          <span>{photo.category}</span>
+                          <span>·</span>
+                          <span className="font-mono">{photo.exif.megapixels}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* TAB: COLLECTIONS */}
+            {activeTab === 'collections' && (
+              <div className="space-y-8 py-4">
+                <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-neutral-900 via-neutral-950 to-neutral-900 border border-neutral-800 text-white p-6 sm:p-8">
+                  <div className="max-w-xl">
+                    <span className="text-xs text-sky-400 font-semibold uppercase tracking-wider">Koleksi Terkurasi iOS 18</span>
+                    <h2 className="text-2xl font-bold tracking-tight text-white mt-1 mb-2">ReFra Wallpapers & Frames</h2>
+                    <p className="text-xs text-neutral-400 leading-relaxed mb-4">
+                      Karya fotografi dengan dynamic range tinggi yang dioptimalkan untuk lock screen smartphone dan bingkai seni arsitektural.
+                    </p>
+                    <button
+                      onClick={() => setActiveTab('framing')}
+                      className="px-4 py-2 rounded-full bg-white text-neutral-950 font-bold text-xs flex items-center gap-2 hover:bg-neutral-100 transition-colors"
+                    >
+                      <IconFrame className="w-4 h-4" />
+                      <span>Buka Framing Studio</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="text-lg font-bold text-neutral-900 dark:text-white mb-3">Kategori Galeri</h3>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                    {['Nature', 'Architecture', 'Portrait', 'Minimalist'].map(cat => (
+                      <div
+                        key={cat}
+                        onClick={() => {
+                          setSelectedCategory(cat);
+                          setActiveTab('library');
+                        }}
+                        className="p-4 rounded-2xl bg-neutral-900 border border-neutral-800 cursor-pointer hover:border-sky-500 transition-all text-white"
+                      >
+                        <h4 className="font-bold text-sm">{cat}</h4>
+                        <p className="text-[11px] text-neutral-400 mt-1">Ketuk untuk memfilter perpustakaan</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* TAB: FRAMING STUDIO (ReFra Signature) */}
+            {activeTab === 'framing' && (
+              <div className="space-y-6 py-4">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                  <div>
+                    <h2 className="text-2xl font-bold tracking-tight text-neutral-900 dark:text-white">Framing & Device Studio</h2>
+                    <p className="text-xs text-neutral-400">Pratinjau foto dalam pigura museum dan wallpaper iOS 18.</p>
+                  </div>
+                  <div
+                    draggable
+                    onDragStart={(e) => setupPhotoDragData(e, activePhoto || photos[0])}
+                    className="px-4 py-2 rounded-full bg-sky-500 hover:bg-sky-400 text-neutral-950 font-bold text-xs flex items-center gap-2 cursor-grab shadow-sm"
+                  >
+                    <IconMove className="w-4 h-4" />
+                    <span>Seret Seni Terbingkai Keluar</span>
+                  </div>
+                </div>
+
+                <div
+                  style={{ backgroundColor: wallColor }}
+                  className="w-full min-h-[460px] rounded-3xl p-8 flex items-center justify-center transition-colors duration-500 relative border border-neutral-800"
+                >
+                  <div
+                    draggable
+                    onDragStart={(e) => setupPhotoDragData(e, activePhoto || photos[0])}
+                    className={`relative max-w-full cursor-grab active:cursor-grabbing transition-all ${
+                      activeFrame === 'museum-mat'
+                        ? 'p-8 bg-[#faf8f5] shadow-2xl border-[14px] border-[#1e1e1e]'
+                        : activeFrame === 'minimal-black'
+                        ? 'p-2 bg-neutral-950 shadow-2xl border-[6px] border-neutral-900'
+                        : activeFrame === 'natural-oak'
+                        ? 'p-6 bg-[#f2eee9] shadow-2xl border-[16px] border-[#b08968]'
+                        : activeFrame === 'ios-wallpaper'
+                        ? 'w-[280px] aspect-[9/19.5] rounded-[48px] p-3.5 bg-neutral-900 border-[6px] border-neutral-700 shadow-2xl relative overflow-hidden'
+                        : 'shadow-2xl'
+                    }`}
+                  >
+                    {activeFrame === 'ios-wallpaper' && (
+                      <>
+                        <div className="absolute top-4 left-1/2 -translate-x-1/2 w-24 h-6 bg-black rounded-full z-20 flex items-center justify-end px-3">
+                          <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                        </div>
+                        <div className="absolute top-14 left-0 right-0 text-center z-20 text-white drop-shadow-md">
+                          <p className="text-[11px] font-medium">Rabu, 28 Okt</p>
+                          <p className="text-5xl font-light tracking-tighter">09:41</p>
+                        </div>
+                      </>
+                    )}
+                    <img
+                      src={(activePhoto || photos[0]).url}
+                      alt="Framed preview"
+                      className={`max-w-full max-h-[50vh] object-cover ${activeFrame === 'ios-wallpaper' ? 'w-full h-full rounded-[36px]' : ''}`}
+                    />
+                  </div>
+                </div>
+
+                {/* Frame Options */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-neutral-900 p-5 rounded-2xl border border-neutral-800">
+                  <div>
+                    <h4 className="text-xs font-semibold text-neutral-400 mb-2 uppercase">Gaya Pigura</h4>
+                    <div className="grid grid-cols-3 gap-2">
+                      {[
+                        { id: 'museum-mat', label: 'Museum Mat' },
+                        { id: 'minimal-black', label: 'Black Metal' },
+                        { id: 'natural-oak', label: 'Oak Wood' },
+                        { id: 'ios-wallpaper', label: 'iOS Screen' },
+                        { id: 'none', label: 'Original' }
+                      ].map(f => (
+                        <button
+                          key={f.id}
+                          onClick={() => setActiveFrame(f.id)}
+                          className={`py-2 px-2 text-xs rounded-xl font-medium transition-all ${
+                            activeFrame === f.id ? 'bg-sky-500 text-neutral-950 font-bold' : 'bg-neutral-800 text-neutral-300'
+                          }`}
+                        >
+                          {f.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <h4 className="text-xs font-semibold text-neutral-400 mb-2 uppercase">Warna Dinding</h4>
+                    <div className="flex items-center gap-3">
+                      {['#171717', '#e7e0d6', '#262e35', '#f5f5f4'].map(color => (
+                        <button
+                          key={color}
+                          onClick={() => setWallColor(color)}
+                          style={{ backgroundColor: color }}
+                          className={`w-9 h-9 rounded-xl border-2 ${wallColor === color ? 'border-sky-500 scale-105' : 'border-neutral-700'}`}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </main>
+
+          {/* DETAIL MODAL (With Infinix Cutout & Frame Studio) */}
+          {activePhoto && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/85 backdrop-blur-xl">
+              <div className="relative w-full max-w-5xl h-[88vh] flex flex-col md:flex-row overflow-hidden rounded-3xl bg-neutral-900 border border-neutral-800 shadow-2xl text-white">
+                
+                {/* Visual Area */}
+                <div className="relative flex-1 flex flex-col items-center justify-center p-4 bg-neutral-950/70 select-none">
+                  <div className="absolute top-4 left-4 right-4 flex items-center justify-between z-20">
+                    <button
+                      onClick={() => setActivePhoto(null)}
+                      className="w-9 h-9 rounded-full bg-neutral-900 hover:bg-neutral-800 text-white flex items-center justify-center"
+                    >
+                      <IconX className="w-5 h-5" />
+                    </button>
+
+                    {/* AI Cutout / Subject Lift Button */}
+                    <button
+                      onClick={() => setIsSubjectLiftActive(!isSubjectLiftActive)}
+                      className={`px-3.5 py-1.5 rounded-full text-xs font-semibold flex items-center gap-2 transition-all ${
+                        isSubjectLiftActive
+                          ? 'bg-gradient-to-r from-sky-400 to-purple-400 text-neutral-950 ring-2 ring-white/50'
+                          : 'bg-neutral-800 text-white hover:bg-neutral-700'
+                      }`}
+                    >
+                      <IconSparkles className="w-3.5 h-3.5" />
+                      <span>{isSubjectLiftActive ? 'Subjek Terisolasi (AI Cutout)' : 'Angkat Subjek (AI Cutout)'}</span>
+                    </button>
+                  </div>
+
+                  {/* Photo Display */}
+                  <div
+                    draggable
+                    onDragStart={(e) => setupPhotoDragData(e, activePhoto, { isCutout: isSubjectLiftActive })}
+                    className="relative cursor-grab active:cursor-grabbing max-w-full max-h-[60vh] flex items-center justify-center"
+                  >
+                    <img
+                      src={activePhoto.url}
+                      alt={activePhoto.title}
+                      className={`max-w-full max-h-[60vh] object-contain rounded-2xl shadow-2xl transition-all ${
+                        isSubjectLiftActive ? 'animate-subject-lift ring-4 ring-sky-400' : ''
+                      }`}
+                    />
+                  </div>
+
+                  {/* Drag Out Handle */}
+                  <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20">
+                    <div
+                      draggable
+                      onDragStart={(e) => setupPhotoDragData(e, activePhoto, { isCutout: isSubjectLiftActive })}
+                      className="flex items-center gap-2 px-4 py-2 rounded-full bg-sky-500 hover:bg-sky-400 text-neutral-950 font-bold text-xs shadow-lg cursor-grab active:cursor-grabbing transition-transform active:scale-95"
+                    >
+                      <IconMove className="w-4 h-4" />
+                      <span>{isSubjectLiftActive ? 'Seret Cutout ke Aplikasi Lain' : 'Seret Foto ke Desktop / Aplikasi Lain'}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Info & Inspector Sidebar */}
+                <div className="w-full md:w-80 flex flex-col justify-between border-t md:border-t-0 md:border-l border-neutral-800 bg-neutral-900 p-5 overflow-y-auto">
+                  <div className="space-y-5">
+                    <div>
+                      <span className="text-xs text-sky-400 font-semibold">{activePhoto.category}</span>
+                      <h3 className="text-xl font-bold text-white mt-0.5">{activePhoto.title}</h3>
+                      <p className="text-xs text-neutral-400">{activePhoto.location}</p>
+                    </div>
+
+                    {/* Color Palette */}
+                    <div>
+                      <span className="text-xs font-semibold text-neutral-400 block mb-1.5 uppercase">Palet Warna ReFra</span>
+                      <div className="flex gap-1.5 h-8">
+                        {activePhoto.palette.map(hex => (
+                          <div
+                            key={hex}
+                            onClick={() => {
+                              navigator.clipboard.writeText(hex);
+                              setCopiedColor(hex);
+                              setTimeout(() => setCopiedColor(null), 1500);
+                            }}
+                            style={{ backgroundColor: hex }}
+                            title={`Salin ${hex}`}
+                            className="flex-1 rounded-lg cursor-pointer hover:scale-105 transition-transform flex items-center justify-center text-[10px]"
+                          >
+                            {copiedColor === hex && <IconCheck className="w-3 h-3 text-white drop-shadow" />}
+                          </div>
+                        ))}
+                      </div>
+                      {copiedColor && <p className="text-[10px] text-emerald-400 mt-1">Tersalin: {copiedColor}</p>}
+                    </div>
+
+                    {/* EXIF Data */}
+                    <div className="p-3 bg-neutral-950/60 rounded-xl border border-neutral-800 text-xs space-y-1 text-neutral-400 font-mono">
+                      <div className="flex justify-between"><span>Kamera:</span> <span className="text-white">{activePhoto.exif.camera}</span></div>
+                      <div className="flex justify-between"><span>Lensa:</span> <span className="text-white">{activePhoto.exif.lens}</span></div>
+                      <div className="flex justify-between"><span>Eksposur:</span> <span className="text-white">{activePhoto.exif.aperture} · {activePhoto.exif.shutterSpeed}</span></div>
+                      <div className="flex justify-between"><span>Resolusi:</span> <span className="text-white">{activePhoto.exif.megapixels}</span></div>
+                    </div>
+                  </div>
+
+                  <div className="pt-4 border-t border-neutral-800 flex gap-2">
+                    <button
+                      onClick={() => toggleFavorite(activePhoto.id)}
+                      className="flex-1 py-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-xs font-bold text-white flex items-center justify-center gap-1.5"
+                    >
+                      <IconHeart className="w-3.5 h-3.5 text-rose-500" filled={activePhoto.isFavorite} />
+                      <span>{activePhoto.isFavorite ? 'Favorit' : 'Sukai'}</span>
+                    </button>
+                    <a
+                      href={activePhoto.url}
+                      download={`${activePhoto.title}.jpg`}
+                      className="py-2 px-4 rounded-xl bg-white text-neutral-950 text-xs font-bold flex items-center gap-1.5"
+                    >
+                      <IconDownload className="w-3.5 h-3.5" />
+                      <span>Unduh</span>
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* DROP TESTER SANDBOX DRAWER */}
+          {isSandboxOpen && (
+            <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-md">
+              <div className="w-full sm:max-w-2xl max-h-[85vh] rounded-t-3xl sm:rounded-3xl bg-neutral-900 border border-neutral-800 shadow-2xl flex flex-col overflow-hidden text-neutral-100">
+                <div className="px-5 py-4 border-b border-neutral-800 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <IconSparkles className="w-5 h-5 text-sky-400" />
+                    <h3 className="font-bold text-sm text-white">External App Drop Tester</h3>
+                  </div>
+                  <button onClick={() => setIsSandboxOpen(false)} className="text-xs text-neutral-400 hover:text-white">Tutup</button>
+                </div>
+
+                <div className="flex gap-2 px-5 pt-3 border-b border-neutral-800 text-xs font-semibold">
+                  {['chat', 'notes', 'canvas'].map(tab => (
+                    <button
+                      key={tab}
+                      onClick={() => setSandboxTab(tab)}
+                      className={`pb-2 px-2 capitalize border-b-2 ${sandboxTab === tab ? 'border-sky-500 text-sky-400' : 'border-transparent text-neutral-500'}`}
+                    >
+                      {tab === 'chat' ? 'WhatsApp / Chat' : tab === 'notes' ? 'iOS Notes' : 'Canvas Editor'}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="p-5 flex-1 overflow-y-auto space-y-4">
+                  <div
+                    onDragOver={(e) => { e.preventDefault(); setSandboxOver(true); }}
+                    onDragLeave={() => setSandboxOver(false)}
+                    onDrop={handleDropInSandbox}
+                    className={`py-8 rounded-2xl border-2 border-dashed flex flex-col items-center justify-center text-center cursor-copy transition-colors ${
+                      sandboxOver ? 'border-sky-400 bg-sky-500/15' : 'border-neutral-700 bg-neutral-950/40'
+                    }`}
+                  >
+                    <IconMove className="w-6 h-6 text-sky-400 mb-2" />
+                    <p className="text-sm font-semibold text-white">Lepaskan Foto di Sini!</p>
+                    <p className="text-xs text-neutral-400 mt-0.5">Seret foto dari galeri atas atau modal detail langsung ke kotak ini.</p>
+                  </div>
+
+                  <div>
+                    <h4 className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-2">Foto Diterima ({droppedItems.length})</h4>
+                    {droppedItems.length === 0 ? (
+                      <p className="text-xs text-neutral-500 text-center py-4">Belum ada foto yang diseret ke aplikasi ini.</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {droppedItems.map(item => (
+                          <div key={item.id} className="p-2.5 rounded-xl bg-neutral-950 border border-neutral-800 flex items-center gap-3">
+                            <img src={item.url} alt={item.title} className="w-12 h-12 rounded-lg object-cover" />
+                            <div className="flex-1 min-w-0 text-xs">
+                              <p className="font-bold text-white truncate">{item.title}</p>
+                              <p className="text-[10px] text-neutral-400">Diterima di {item.target} · {item.time}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+        </div>
+      );
+    }
+
+    // Render the React application into the root container
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
