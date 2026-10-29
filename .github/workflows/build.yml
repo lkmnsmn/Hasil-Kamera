@@ -15,113 +15,32 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Setup Java JDK
-        uses: actions/setup-java@v4
+      - name: Build APK via Web2App
+        uses: subosito/flutter-action@v2
         with:
-          distribution: 'temurin'
-          java-version: '17'
+          channel: 'stable'
 
-      - name: Generate Android Native Project
+      - name: Create Webview App
         run: |
-          mkdir -p android_app/app/src/main/assets
-          mkdir -p android_app/app/src/main/java/com/refra/photos
-          mkdir -p android_app/app/src/main/res/layout
-
-          cp index.html android_app/app/src/main/assets/index.html
-
-          cat << 'EOF' > android_app/build.gradle
-          buildscript {
-              repositories { google(); mavenCentral() }
-              dependencies { classpath 'com.android.tools.build:gradle:8.1.1' }
-          }
-          allprojects {
-              repositories { google(); mavenCentral() }
-          }
+          flutter create app
+          cd app
+          rm -rf lib/main.dart
+          cat << 'EOF' > lib/main.dart
+          import 'package:flutter/material.dart';
+          import 'package:webview_flutter/webview_flutter.dart';
+          void main() => runApp(const MaterialApp(home: Scaffold(body: SafeArea(child: WebViewWidget(controller: WebViewController()..setJavaScriptMode(JavaScriptMode.unrestricted)..loadFlutterAsset('assets/index.html'))))));
           EOF
+          mkdir -p assets
+          cp ../index.html assets/index.html
+          echo "  assets:" >> pubspec.yaml
+          echo "    - assets/index.html" >> pubspec.yaml
+          echo "dependencies:" >> pubspec.yaml
+          echo "  webview_flutter: ^4.2.0" >> pubspec.yaml
+          flutter pub get
+          flutter build apk --debug
 
-          cat << 'EOF' > android_app/settings.gradle
-          include ':app'
-          EOF
-
-          cat << 'EOF' > android_app/app/build.gradle
-          plugins {
-              id 'com.android.application'
-          }
-          android {
-              namespace 'com.refra.photos'
-              compileSdk 33
-              defaultConfig {
-                  applicationId "com.refra.photos"
-                  minSdk 21
-                  targetSdk 33
-                  versionCode 1
-                  versionName "1.0"
-              }
-          }
-          dependencies {
-              implementation 'androidx.appcompat:appcompat:1.6.1'
-          }
-          EOF
-
-          cat << 'EOF' > android_app/app/src/main/AndroidManifest.xml
-          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-              <uses-permission android:name="android.permission.INTERNET" />
-              <application
-                  android:label="ReFra Photos"
-                  android:supportsRtl="true"
-                  android:theme="@style/Theme.AppCompat.Light.NoActionBar">
-                  <activity
-                      android:name=".MainActivity"
-                      android:exported="true">
-                      <intent-filter>
-                          <action android:name="android.intent.action.MAIN" />
-                          <category android:name="android.intent.category.LAUNCHER" />
-                      </intent-filter>
-                  </activity>
-              </application>
-          </manifest>
-          EOF
-
-          cat << 'EOF' > android_app/app/src/main/res/layout/activity_main.xml
-          <?xml version="1.0" encoding="utf-8"?>
-          <WebView xmlns:android="http://schemas.android.com/apk/res/android"
-              android:id="@+id/webview"
-              android:layout_width="match_parent"
-              android:layout_height="match_parent" />
-          EOF
-
-          cat << 'EOF' > android_app/app/src/main/java/com/refra/photos/MainActivity.java
-          package com.refra.photos;
-
-          import android.os.Bundle;
-          import android.webkit.WebSettings;
-          import android.webkit.WebView;
-          import androidx.appcompat.app.AppCompatActivity;
-
-          public class MainActivity extends AppCompatActivity {
-              @Override
-              protected void onCreate(Bundle savedInstanceState) {
-                  super.onCreate(savedInstanceState);
-                  setContentView(R.layout.activity_main);
-
-                  WebView webView = findViewById(R.id.webview);
-                  WebSettings settings = webView.getSettings();
-                  settings.setJavaScriptEnabled(true);
-                  settings.setDomStorageEnabled(true);
-                  settings.setAllowFileAccess(true);
-
-                  webView.loadUrl("file:///android_asset/index.html");
-              }
-          }
-          EOF
-
-      - name: Build Gradle APK
-        run: |
-          cd android_app
-          gradle assembleDebug
-
-      - name: Upload APK Artifact
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: ReFra-Photos-APK
-          path: android_app/app/build/outputs/apk/debug/app-debug.apk
+          path: app/build/app/outputs/flutter-apk/app-debug.apk
