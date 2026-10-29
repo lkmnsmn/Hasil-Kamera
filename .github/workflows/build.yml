@@ -24,7 +24,7 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Build Web to APK (Corber/Cordova)
+      - name: Build Webview APK
         run: |
           npm install -g cordova
           cordova create app com.refra.photos ReFraPhotos
@@ -32,7 +32,7 @@ jobs:
           rm -rf www/*
           cp ../index.html www/index.html
           cordova platform add android
-          cordova build android
+          cordova build android --nogradle || ./gradlew assembleDebug || cordova build android
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
