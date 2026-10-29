@@ -15,21 +15,14 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Setup Java JDK
-        uses: actions/setup-java@v5
+      - name: Generate APK via PWABuilder
+        uses: pwa-builder/pwa-action@v1.0.2
         with:
-          distribution: 'temurin'
-          java-version: '17'
-
-      - name: Build Webview APK
-        uses: Android-Actions/pwa-to-apk@v1
-        with:
-          name: 'ReFra Photos'
-          package-name: 'com.refra.photos'
-          index-path: 'index.html'
+          url: 'https://glistening-cajeta-8f0748.netlify.app'
+          output-type: 'apk'
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: ReFra-Photos-APK
-          path: '*.apk'
+          path: '**.apk'
